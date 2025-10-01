@@ -3,34 +3,25 @@ pipeline {
 
   environment {
     IMAGE_NAME        = 'abrahamyuxin/express-sample'
-    // Use the container name "dind" (resolves reliably on the user-defined network)
-    DOCKER_HOST       = 'tcp://dind:2376'
+    DOCKER_HOST       = 'tcp://docker:2376'   // alias provided by compose
     DOCKER_CERT_PATH  = '/certs/client'
     DOCKER_TLS_VERIFY = '1'
   }
 
-  options {
-    timestamps()
-  }
+  options { timestamps() }
 
   stages {
     stage('Checkout') {
       agent any
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
-    stage('Verify Docker connection (TLS to dind)') {
+    stage('Verify Docker connection (TLS)') {
       agent any
       steps {
         sh '''
           set -eux
-          echo "Checking DNS for dind and docker (if alias exists)..."
-          getent hosts dind || true
-          getent hosts docker || true
-
-          echo "Verifying Docker client->daemon over TLS..."
+          getent hosts docker
           docker version
         '''
       }
@@ -89,7 +80,7 @@ pipeline {
                                          passwordVariable: 'DOCKERHUB_TOKEN')]) {
           sh '''
             set -eux
-            docker version  # should show Server: Docker Engine (from dind)
+            docker version  # confirm connection again
 
             TAG=${SHORT_SHA:0:7}
             IMAGE="${IMAGE_NAME}:${TAG}"
@@ -107,9 +98,7 @@ pipeline {
         }
       }
       post {
-        always {
-          archiveArtifacts artifacts: 'pushed-image.txt', onlyIfSuccessful: false
-        }
+        always { archiveArtifacts artifacts: 'pushed-image.txt', onlyIfSuccessful: false }
       }
     }
   }

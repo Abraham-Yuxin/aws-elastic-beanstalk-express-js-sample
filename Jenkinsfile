@@ -2,9 +2,9 @@ pipeline {
   agent none
 
   environment {
-    IMAGE_NAME = 'abrahamyuxin/express-sample'
-    DOCKER_HOST       = 'tcp://docker:2376'
-    DOCKER_CERT_PATH  = '/certs/client'
+    IMAGE_NAME       = 'abrahamyuxin/express-sample'
+    DOCKER_HOST      = 'tcp://docker:2376'
+    DOCKER_CERT_PATH = '/certs/client'
     DOCKER_TLS_VERIFY = '1'
   }
 
@@ -17,7 +17,9 @@ pipeline {
   stages {
     stage('Checkout') {
       agent any
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Install & Test (Node 16)') {
@@ -36,7 +38,7 @@ pipeline {
             npm install
           fi
         '''
-        # Run tests if present (won’t fail if script missing)
+        // Run tests if present (won’t fail if script missing)
         sh 'npm test --if-present'
       }
     }
@@ -91,7 +93,9 @@ pipeline {
         }
       }
       post {
-        always { archiveArtifacts artifacts: 'pushed-image.txt', onlyIfSuccessful: false }
+        always {
+          archiveArtifacts artifacts: 'pushed-image.txt', onlyIfSuccessful: false
+        }
       }
     }
   }
@@ -101,3 +105,4 @@ pipeline {
     failure { echo 'Pipeline failed (tests or Snyk may have blocked the build).' }
   }
 }
+

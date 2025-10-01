@@ -2,16 +2,14 @@ pipeline {
   agent none
 
   environment {
-    IMAGE_NAME       = 'abrahamyuxin/express-sample'
-    DOCKER_HOST      = 'tcp://docker:2376'
-    DOCKER_CERT_PATH = '/certs/client'
+    IMAGE_NAME        = 'abrahamyuxin/express-sample'
+    DOCKER_HOST       = 'tcp://docker:2376'
+    DOCKER_CERT_PATH  = '/certs/client'
     DOCKER_TLS_VERIFY = '1'
   }
 
   options {
     timestamps()
-    // Use AnsiColor via the supported "wrap" option (works with your Jenkins):
-    wrap([$class: 'AnsiColorBuildWrapper', colorMapName: 'xterm'])
   }
 
   stages {
@@ -105,4 +103,3 @@ pipeline {
     failure { echo 'Pipeline failed (tests or Snyk may have blocked the build).' }
   }
 }
-

@@ -3,7 +3,8 @@ pipeline {
 
   environment {
     IMAGE_NAME        = 'abrahamyuxin/express-sample'
-    DOCKER_HOST       = 'tcp://docker:2376'
+    // Use the container name "dind" (resolves reliably on the user-defined network)
+    DOCKER_HOST       = 'tcp://dind:2376'
     DOCKER_CERT_PATH  = '/certs/client'
     DOCKER_TLS_VERIFY = '1'
   }
@@ -17,6 +18,21 @@ pipeline {
       agent any
       steps {
         checkout scm
+      }
+    }
+
+    stage('Verify Docker connection (TLS to dind)') {
+      agent any
+      steps {
+        sh '''
+          set -eux
+          echo "Checking DNS for dind and docker (if alias exists)..."
+          getent hosts dind || true
+          getent hosts docker || true
+
+          echo "Verifying Docker client->daemon over TLS..."
+          docker version
+        '''
       }
     }
 
@@ -73,7 +89,7 @@ pipeline {
                                          passwordVariable: 'DOCKERHUB_TOKEN')]) {
           sh '''
             set -eux
-            docker version  # should show Server: ... (dind) via TLS
+            docker version  # should show Server: Docker Engine (from dind)
 
             TAG=${SHORT_SHA:0:7}
             IMAGE="${IMAGE_NAME}:${TAG}"

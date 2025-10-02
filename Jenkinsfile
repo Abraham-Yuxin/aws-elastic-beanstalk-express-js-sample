@@ -1,23 +1,13 @@
 pipeline {
-  agent none
-
-  environment {
-    IMAGE_NAME        = 'abrahamyuxin/express-sample'
-    DOCKER_HOST       = 'tcp://docker:2376'   // alias provided by compose
-    DOCKER_CERT_PATH  = '/certs/client'
-    DOCKER_TLS_VERIFY = '1'
-  }
-
+  agent any
   options { timestamps() }
 
-  stages {
-    stage('Checkout') {
-      agent any
-      steps { checkout scm }
-    }
+  environment {
+    IMAGE_NAME = 'abrahamyuxin/express-sample'
+  }
 
-    stage('Verify Docker connection (TLS)') {
-      agent any
+  stages {
+    stage('Verify Docker (TLS to DinD)') {
       steps {
         sh '''
           set -eux
@@ -27,84 +17,66 @@ pipeline {
       }
     }
 
-    stage('Install & Test (Node 16)') {
-      agent {
-        docker {
-          image 'node:16-bullseye'
-          args '-u root:root'
-        }
-      }
+    stage('Install & Test in Node 16 container') {
       steps {
-        sh 'node -v'
         sh '''
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          set -eux
+          # Mount the Jenkins workspace (shared volume) into the Node container
+          docker run --rm \
+            -v "$WORKSPACE":/workspace \
+            -w /workspace \
+            node:16-bullseye \
+            bash -lc '
+              node -v &&
+              if [ -f package-lock.json ]; then npm ci; else npm install; fi &&
+              npm test
+            '
         '''
-        // Run tests if present (won’t fail if script missing)
-        sh 'npm test --if-present'
+      }
+    }
+
+    stage('Docker Build & Tag') {
+      steps {
+        sh '''
+          set -eux
+          docker build -t $IMAGE_NAME:${BUILD_NUMBER} .
+          docker tag   $IMAGE_NAME:${BUILD_NUMBER} $IMAGE_NAME:latest
+        '''
+      }
+    }
+
+    stage('Push to Docker Hub') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
+          sh '''
+            set -eux
+            echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
+            docker push $IMAGE_NAME:${BUILD_NUMBER}
+            docker push $IMAGE_NAME:latest
+          '''
+        }
       }
     }
 
     stage('Dependency Security Scan (Snyk)') {
-      agent {
-        docker {
-          image 'node:16-bullseye'
-          args '-u root:root'
-        }
-      }
-      environment {
-        SNYK_TOKEN = credentials('snyk-token')
-      }
+      when { expression { return false } } // <-- remove this line after you add Snyk token/step
       steps {
-        sh '''
-          set -eux
-          npm install -g snyk
-          snyk auth "$SNYK_TOKEN"
-          # Fail the build if High/Critical issues are found
-          snyk test --severity-threshold=high
-        '''
-      }
-    }
-
-    stage('Docker Build & Push (TLS to dind)') {
-      agent any
-      environment {
-        SHORT_SHA = "${env.GIT_COMMIT ?: 'manual'}"
-      }
-      steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub',
-                                         usernameVariable: 'DOCKERHUB_USERNAME',
-                                         passwordVariable: 'DOCKERHUB_TOKEN')]) {
+        withCredentials([string(credentialsId: 'snyk-token', variable: 'SNYK_TOKEN')]) {
           sh '''
             set -eux
-            docker version  # confirm connection again
-
-            TAG=${SHORT_SHA:0:7}
-            IMAGE="${IMAGE_NAME}:${TAG}"
-
-            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-
-            docker build -t "$IMAGE" .
-            docker push "$IMAGE"
-
-            docker tag "$IMAGE" "${IMAGE_NAME}:latest"
-            docker push "${IMAGE_NAME}:latest"
-
-            echo "$IMAGE" > pushed-image.txt
+            docker run --rm \
+              -e SNYK_TOKEN="$SNYK_TOKEN" \
+              -v "$WORKSPACE":/workspace \
+              -w /workspace \
+              node:16-bullseye \
+              bash -lc '
+                npm i -g snyk &&
+                snyk auth "$SNYK_TOKEN" &&
+                snyk test --severity-threshold=high
+              '
           '''
         }
       }
-      post {
-        always { archiveArtifacts artifacts: 'pushed-image.txt', onlyIfSuccessful: false }
-      }
     }
-  }
-
-  post {
-    success { echo 'Pipeline completed successfully.' }
-    failure { echo 'Pipeline failed (tests or Snyk may have blocked the build).' }
   }
 }

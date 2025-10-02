@@ -12,7 +12,7 @@ pipeline {
       steps {
         deleteDir()
         checkout scm
-        // Sanity check: list files so we see package.json in logs
+        // Sanity check: show that package.json exists in the workspace
         sh 'ls -la && echo "----" && head -n 20 package.json || true'
       }
     }
@@ -32,14 +32,18 @@ pipeline {
         sh '''
           set -eux
 
-          # Create a throwaway Node container
+          # Create a container
           cid=$(docker create node:16-bullseye bash -lc "sleep 9999")
+          # Ensure cleanup on exit
           trap "docker rm -f $cid >/dev/null 2>&1 || true" EXIT
+
+          # Start the container so we can exec into it
+          docker start "$cid"
 
           # Copy the Jenkins workspace into the container
           docker cp "$WORKSPACE"/. "$cid":/workspace
 
-          # Run install & test inside container
+          # Run install & tests inside the container
           docker exec -w /workspace "$cid" bash -lc '
             node -v &&
             if [ -f package-lock.json ]; then npm ci; else npm install; fi &&
@@ -81,6 +85,8 @@ pipeline {
 
             cid=$(docker create -e SNYK_TOKEN="$SNYK_TOKEN" node:16-bullseye bash -lc "sleep 9999")
             trap "docker rm -f $cid >/dev/null 2>&1 || true" EXIT
+
+            docker start "$cid"
 
             docker cp "$WORKSPACE"/. "$cid":/workspace
 

@@ -5,6 +5,7 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js"
+    "test": "echo \"No tests configured\" && exit 0"
   },
   "repository": {
     "type": "git",

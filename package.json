@@ -1,18 +1,18 @@
 {
-  "name": "aws-elastic-beanstalk-express-js-sample",
+  "name": "nodejs-express-sample",
   "version": "1.0.0",
-  "description": "Sample Node.js (Express) app for AWS Elastic Beanstalk",
+  "description": "Sample Node.js app for AWS Elastic Beanstalk",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js",
-    "test": "echo \"No tests configured\" && exit 0"
+    "start": "node app.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aws-samples/aws-elastic-beanstalk-express-js-sample.git"
+    "url": "https://github.com/aws-samples/aws-elastic-beanstalk-express-js-sample"
   },
-  "license": "MIT-0",
+  "author": "AWS Elastic Beanstalk",
+  "license": "MIT",
   "dependencies": {
-    "express": "^4.21.2"
+    "express": "^4.17.1"
   }
 }
